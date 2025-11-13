@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini DOOM Raycaster</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Press Start 2P", system-ui, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top, #1a1a1a, #050505 55%);
+      color: #e7dfcf;
+    }
+
+    main {
+      display: grid;
+      gap: 1.5rem;
+      text-align: center;
+      padding: 1.5rem;
+    }
+
+    h1 {
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.4rem;
+      font-size: clamp(1.25rem, 2vw + 1rem, 2.2rem);
+      text-shadow: 0 0.4rem 1rem rgba(255, 0, 0, 0.35);
+    }
+
+    p {
+      margin: 0;
+      font-size: clamp(0.7rem, 1vw + 0.6rem, 1rem);
+      line-height: 1.6;
+      opacity: 0.8;
+    }
+
+    canvas {
+      border: 4px solid #3a0d0d;
+      box-shadow: 0 0 25px rgba(255, 0, 0, 0.35);
+      background: #000;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: center;
+      gap: 1.25rem;
+      font-size: 0.75rem;
+      opacity: 0.7;
+      text-transform: uppercase;
+    }
+
+    .hud span strong {
+      color: #ff5c33;
+      text-shadow: 0 0 6px rgba(255, 92, 51, 0.6);
+    }
+
+    footer {
+      font-size: 0.65rem;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Mini DOOM</h1>
+      <p>Use <strong>WASD</strong> to move and <strong>← →</strong> to turn. Clear the corridor without touching the walls!</p>
+    </header>
+    <canvas id="game" width="960" height="480" aria-label="Mini DOOM raycasting demo"></canvas>
+    <div class="hud">
+      <span>Health: <strong id="health">100</strong></span>
+      <span>Position: <strong id="position">0.0, 0.0</strong></span>
+    </div>
+    <footer>Built with plain HTML, CSS, and JavaScript.</footer>
+  </main>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+    const HALF_WIDTH = WIDTH / 2;
+    const HALF_HEIGHT = HEIGHT / 2;
+
+    const MAP = [
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    ];
+
+    const TILE_SIZE = 64;
+    const FOV = Math.PI / 3;
+    const NUM_RAYS = HALF_WIDTH;
+    const MAX_DEPTH = MAP.length * TILE_SIZE;
+    const SPEED = 2.5;
+    const ROT_SPEED = 0.04;
+
+    const player = {
+      x: TILE_SIZE * 1.5,
+      y: TILE_SIZE * 5,
+      angle: 0,
+      health: 100
+    };
+
+    const keys = new Set();
+
+    function updateHUD() {
+      const healthEl = document.getElementById("health");
+      const positionEl = document.getElementById("position");
+
+      if (healthEl) {
+        healthEl.textContent = Math.max(0, Math.round(player.health));
+      }
+
+      if (positionEl) {
+        const gridX = (player.x / TILE_SIZE).toFixed(2);
+        const gridY = (player.y / TILE_SIZE).toFixed(2);
+        positionEl.textContent = `${gridX}, ${gridY}`;
+      }
+    }
+
+    function castRay(angle) {
+      let sin = Math.sin(angle);
+      let cos = Math.cos(angle);
+
+      for (let depth = 0; depth < MAX_DEPTH; depth += 1) {
+        const targetX = player.x + cos * depth;
+        const targetY = player.y + sin * depth;
+        const mapX = Math.floor(targetX / TILE_SIZE);
+        const mapY = Math.floor(targetY / TILE_SIZE);
+
+        if (MAP[mapY]?.[mapX] === 1) {
+          return { depth, hitX: targetX, hitY: targetY };
+        }
+      }
+      return { depth: MAX_DEPTH, hitX: player.x, hitY: player.y };
+    }
+
+    function render3D() {
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      const skyGradient = ctx.createLinearGradient(0, 0, 0, HALF_HEIGHT);
+      skyGradient.addColorStop(0, "#3a0806");
+      skyGradient.addColorStop(1, "#150202");
+      ctx.fillStyle = skyGradient;
+      ctx.fillRect(0, 0, HALF_WIDTH, HALF_HEIGHT);
+
+      const floorGradient = ctx.createLinearGradient(0, HALF_HEIGHT, 0, HEIGHT);
+      floorGradient.addColorStop(0, "#1a1a1a");
+      floorGradient.addColorStop(1, "#050505");
+      ctx.fillStyle = floorGradient;
+      ctx.fillRect(0, HALF_HEIGHT, HALF_WIDTH, HALF_HEIGHT);
+
+      for (let ray = 0; ray < NUM_RAYS; ray++) {
+        const rayAngle = player.angle - FOV / 2 + (ray / NUM_RAYS) * FOV;
+        const { depth } = castRay(rayAngle);
+        const correctedDepth = depth * Math.cos(player.angle - rayAngle);
+        const wallHeight = Math.min((TILE_SIZE * 200) / correctedDepth, HEIGHT);
+        const brightness = Math.max(0.2, 1 - correctedDepth / MAX_DEPTH);
+
+        const color = `rgba(${Math.floor(200 * brightness)}, ${Math.floor(30 * brightness)}, ${Math.floor(30 * brightness)}, 1)`;
+        ctx.fillStyle = color;
+        ctx.fillRect(ray, HALF_HEIGHT - wallHeight / 2, 1, wallHeight);
+      }
+    }
+
+    function renderMiniMap() {
+      const mapScale = 0.25;
+      const mapWidth = MAP[0].length * TILE_SIZE * mapScale;
+      const mapHeight = MAP.length * TILE_SIZE * mapScale;
+      const offsetX = HALF_WIDTH + (HALF_WIDTH - mapWidth) / 2;
+      const offsetY = (HEIGHT - mapHeight) / 2;
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+      ctx.fillRect(HALF_WIDTH, 0, HALF_WIDTH, HEIGHT);
+      ctx.strokeStyle = "#333";
+      ctx.strokeRect(offsetX - 6, offsetY - 6, mapWidth + 12, mapHeight + 12);
+
+      for (let y = 0; y < MAP.length; y++) {
+        for (let x = 0; x < MAP[y].length; x++) {
+          if (MAP[y][x] === 1) {
+            ctx.fillStyle = "#552222";
+            ctx.fillRect(
+              offsetX + x * TILE_SIZE * mapScale,
+              offsetY + y * TILE_SIZE * mapScale,
+              TILE_SIZE * mapScale,
+              TILE_SIZE * mapScale
+            );
+          }
+        }
+      }
+
+      ctx.fillStyle = "#f5b642";
+      ctx.beginPath();
+      ctx.arc(
+        offsetX + player.x * mapScale,
+        offsetY + player.y * mapScale,
+        4,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+
+      ctx.strokeStyle = "#f5b642";
+      ctx.beginPath();
+      ctx.moveTo(
+        offsetX + player.x * mapScale,
+        offsetY + player.y * mapScale
+      );
+      ctx.lineTo(
+        offsetX + (player.x + Math.cos(player.angle) * 20) * mapScale,
+        offsetY + (player.y + Math.sin(player.angle) * 20) * mapScale
+      );
+      ctx.stroke();
+    }
+
+    function movePlayer() {
+      const forward = keys.has("KeyW") - keys.has("KeyS");
+      const strafe = keys.has("KeyD") - keys.has("KeyA");
+      const turn = keys.has("ArrowRight") - keys.has("ArrowLeft");
+
+      player.angle += turn * ROT_SPEED;
+
+      const dx = Math.cos(player.angle) * SPEED * forward + Math.cos(player.angle + Math.PI / 2) * SPEED * strafe;
+      const dy = Math.sin(player.angle) * SPEED * forward + Math.sin(player.angle + Math.PI / 2) * SPEED * strafe;
+
+      const nextX = player.x + dx;
+      const nextY = player.y + dy;
+
+      if (!isWall(nextX, player.y)) {
+        player.x = nextX;
+      } else {
+        player.health = Math.max(0, player.health - 1);
+      }
+
+      if (!isWall(player.x, nextY)) {
+        player.y = nextY;
+      } else {
+        player.health = Math.max(0, player.health - 1);
+      }
+    }
+
+    function isWall(x, y) {
+      const mapX = Math.floor(x / TILE_SIZE);
+      const mapY = Math.floor(y / TILE_SIZE);
+      return MAP[mapY]?.[mapX] === 1;
+    }
+
+    function loop() {
+      movePlayer();
+      render3D();
+      renderMiniMap();
+      updateHUD();
+      requestAnimationFrame(loop);
+    }
+
+    const CONTROL_KEYS = new Set([
+      "KeyW",
+      "KeyA",
+      "KeyS",
+      "KeyD",
+      "ArrowLeft",
+      "ArrowRight"
+    ]);
+
+    window.addEventListener("keydown", (event) => {
+      if (CONTROL_KEYS.has(event.code)) {
+        event.preventDefault();
+        keys.add(event.code);
+      }
+    });
+
+    window.addEventListener("keyup", (event) => {
+      if (CONTROL_KEYS.has(event.code)) {
+        event.preventDefault();
+        keys.delete(event.code);
+      }
+    });
+
+    updateHUD();
+    loop();
+  </script>
+</body>
+</html>
