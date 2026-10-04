@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eleições Brasil 2026 · Presidente</title>
+<style>
+  :root{--bg:#f5f6f8;--card:#fff;--ink:#14181f;--mute:#667085;--line:#e4e7ec;--accent:#0b7a3b;--gold:#f2b705}
+  @media (prefers-color-scheme:dark){:root{--bg:#0e1116;--card:#171b22;--ink:#eef0f3;--mute:#98a2b3;--line:#272d38}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{background:linear-gradient(135deg,#0b7a3b,#0a5c2d);color:#fff;padding:18px 16px}
+  header h1{margin:0;font-size:20px} header p{margin:2px 0 0;opacity:.85;font-size:13px}
+  main{max-width:960px;margin:0 auto;padding:16px;display:grid;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h2{margin:0 0 12px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+  .status{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;font-size:13px;color:var(--mute)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#98a2b3;margin-right:6px}
+  .live .dot{background:#e5383b;animation:p 1.4s infinite} @keyframes p{50%{opacity:.25}}
+  .banner{display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff4d6;color:#6b4e00;font-size:13px}
+  .cand{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+  .cand:first-of-type{border-top:0}
+  .badge{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:15px}
+  .name{font-weight:600}.sub{color:var(--mute);font-size:12px}
+  .pct{font-size:22px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .votes{font-size:12px;color:var(--mute);text-align:right;font-variant-numeric:tabular-nums}
+  .bar{grid-column:2/4;height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:4px;transition:width .6s}
+  .tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:var(--gold);color:#222;font-size:11px;font-weight:700}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.stat span{font-size:12px;color:var(--mute)}
+  .prog{height:10px;background:var(--line);border-radius:5px;overflow:hidden;margin:8px 0 4px}.prog i{display:block;height:100%;background:var(--accent);transition:width .6s}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:7px 6px;border-top:1px solid var(--line)} th{font-size:12px;color:var(--mute);font-weight:600;border-top:0}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+  .tbl{overflow-x:auto}
+  footer{max-width:960px;margin:0 auto;padding:0 16px 28px;color:var(--mute);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🇧🇷 Eleições 2026 · Presidente</h1>
+  <p>Risultati in tempo reale — dati ufficiali TSE · 1º turno</p>
+</header>
+<main>
+  <section class="card">
+    <div class="status" id="status"><span><i class="dot"></i>Caricamento…</span></div>
+    <div class="banner" id="banner"></div>
+  </section>
+  <section class="card"><h2>Candidati — voti validi</h2><div id="cands"></div></section>
+  <section class="card"><h2>Scrutinio</h2>
+    <div class="prog"><i id="progbar" style="width:0"></i></div>
+    <div class="sub" id="progtxt"></div>
+    <div class="stats" id="stats" style="margin-top:14px"></div>
+  </section>
+  <section class="card"><h2>Per stato</h2><div class="tbl"><table>
+    <thead><tr><th>Stato</th><th>In testa</th><th class="n">%</th><th>2º</th><th class="n">%</th><th class="n">Sezioni</th></tr></thead>
+    <tbody id="ufs"></tbody></table></div></section>
+</main>
+<footer>Fonte: resultados.tse.jus.br. Aggiornamento automatico ogni 20 s. I dati sono parziali finché lo scrutinio non è al 100%; solo il TSE proclama il risultato ufficiale.</footer>
+<script>
+const UFS = {ac:'Acre',al:'Alagoas',am:'Amazonas',ap:'Amapá',ba:'Bahia',ce:'Ceará',df:'Distrito Federal',es:'Espírito Santo',go:'Goiás',ma:'Maranhão',mg:'Minas Gerais',ms:'Mato Grosso do Sul',mt:'Mato Grosso',pa:'Pará',pb:'Paraíba',pe:'Pernambuco',pi:'Piauí',pr:'Paraná',rj:'Rio de Janeiro',rn:'Rio Grande do Norte',ro:'Rondônia',rr:'Roraima',rs:'Rio Grande do Sul',sc:'Santa Catarina',se:'Sergipe',sp:'São Paulo',to:'Tocantins',zz:'Estero'};
+const COLORS = {13:'#d62828',22:'#1d5fc4',55:'#0b8a8a',70:'#f48c06',14:'#7b2cbf',30:'#e85d04',80:'#9d0208',27:'#2a9d8f',21:'#6c757d',16:'#8d6e63',35:'#4361ee',29:'#adb5bd'};
+const PALETTE = ['#4361ee','#2a9d8f','#e76f51','#7b2cbf','#f4a261','#6c757d'];
+const color = n => COLORS[n] || PALETTE[n % PALETTE.length];
+const nf = new Intl.NumberFormat('it-IT');
+const num = x => parseFloat(String(x).replace(',', '.')) || 0;
+const pct = x => num(x).toFixed(2).replace('.', ',') + '%';
+const $ = id => document.getElementById(id);
+
+function flatten(d) {
+  const out = [];
+  for (const a of d.carg[0].agr || []) for (const p of a.par) for (const c of p.cand)
+    out.push({ n: +c.n, nm: c.nmu || c.nm, sg: p.sg, v: +c.vap, p: num(c.pvapn), st: c.st, elected: c.e === 's' });
+  return out.sort((a, b) => b.v - a.v || a.nm.localeCompare(b.nm));
+}
+const get = uf => fetch('/api/' + uf).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const initials = s => s.split(/\s+/).filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join('').toUpperCase() || s.slice(0, 2);
+
+function render(d) {
+  const list = flatten(d);
+  const max = Math.max(...list.map(c => c.p), 1);
+  $('cands').innerHTML = list.map(c => `
+    <div class="cand">
+      <div class="badge" style="background:${color(c.n)}">${initials(c.nm)}</div>
+      <div><div class="name">${c.nm}${c.st ? `<span class="tag">${c.st}</span>` : ''}</div><div class="sub">${c.sg} · ${c.n}</div></div>
+      <div><div class="pct">${pct(c.p)}</div><div class="votes">${nf.format(c.v)} voti</div></div>
+      <div class="bar"><i style="width:${c.p / max * 100}%;background:${color(c.n)}"></i></div>
+    </div>`).join('');
+
+  const s = d.s, v = d.v, e = d.e, ps = num(s.pstn);
+  $('progbar').style.width = ps + '%';
+  $('progtxt').textContent = `${pct(s.pstn)} delle sezioni scrutinate (${nf.format(s.st)} di ${nf.format(s.ts)})`;
+  const stat = (b, t) => `<div class="stat"><b>${b}</b><span>${t}</span></div>`;
+  $('stats').innerHTML =
+    stat(nf.format(v.vv), 'voti validi') + stat(nf.format(v.vb) + ' · ' + pct(v.pvbn), 'bianche') +
+    stat(nf.format(v.vn) + ' · ' + pct(v.pvnn), 'nulle') + stat(nf.format(e.te), 'elettori aventi diritto') +
+    stat(pct(e.pcn), 'affluenza (sezioni scrutinate)') + stat(pct(e.pan), 'astensione');
+
+  const live = ps < 100;
+  $('status').className = 'status' + (live ? ' live' : '');
+  $('status').innerHTML = `<span><i class="dot"></i>${live ? 'SCRUTINIO IN CORSO' : 'Scrutinio concluso'}</span>
+    <span>Dati TSE: ${d.dg} ${d.hg}</span><span>Ultimo controllo: ${new Date().toLocaleTimeString('it-IT')}</span>`;
+  const b = $('banner');
+  if (list[0] && list[0].p > 50 && ps < 100) { b.style.display = 'block'; b.textContent = 'Attenzione: i dati sono parziali; il risultato può cambiare con il progredire dello scrutinio.'; }
+  else b.style.display = 'none';
+}
+
+async function renderStates() {
+  const rows = await Promise.all(Object.keys(UFS).map(uf => get(uf).then(d => ({ uf, d })).catch(() => null)));
+  const html = rows.filter(Boolean).map(({ uf, d }) => {
+    const l = flatten(d), a = l[0], b = l[1];
+    const cell = c => c ? `<span class="sw" style="background:${color(c.n)}"></span>${c.nm}` : '';
+    return `<tr><td>${UFS[uf]}</td><td>${cell(a)}</td><td class="n">${a ? pct(a.p) : ''}</td><td>${cell(b)}</td><td class="n">${b ? pct(b.p) : ''}</td><td class="n">${pct(d.s.pstn)}</td></tr>`;
+  }).join('');
+  $('ufs').innerHTML = html;
+}
+
+async function tick() {
+  try { render(await get('br')); await renderStates(); }
+  catch (err) { $('status').innerHTML = `<span><i class="dot"></i>Dati TSE non disponibili (${err.message}). Riprovo…</span>`; }
+}
+tick(); setInterval(tick, 20000);
+</script>
+</body>
+</html>
