@@ -75,7 +75,12 @@ function flatten(d) {
     out.push({ n: +c.n, nm: c.nmu || c.nm, sg: p.sg, v: +c.vap, p: num(c.pvapn), st: c.st, elected: c.e === 's' });
   return out.sort((a, b) => b.v - a.v || a.nm.localeCompare(b.nm));
 }
-const get = uf => fetch('/api/' + uf).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const TSE = 'https://resultados.tse.jus.br/oficial/ele2026/6257/dados';
+const ok = r => { if (!r.ok) throw new Error(r.status); return r.json(); };
+// Il TSE consente le richieste dal browser: la pagina funziona anche da sola (es. GitHub Pages).
+// Se la richiesta diretta fallisce, si ripiega sul proxy locale di server.js.
+const get = uf => fetch(`${TSE}/${uf}/${uf}-c0001-e006257-u.json`, { cache: 'no-store' }).then(ok)
+  .catch(() => fetch('/api/' + uf).then(ok));
 const initials = s => s.split(/\s+/).filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join('').toUpperCase() || s.slice(0, 2);
 
 function render(d) {
